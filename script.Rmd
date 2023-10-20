@@ -24,7 +24,7 @@ BiocManager::install("flowAI")
 BiocManager::install("flowAI")
 BiocManager::install("PeacoQC")
 BiocManager::install("CATALYST")
-BiocManager::install("SingleCellExperiment")
+BiocManager::install("c")
 
 if(!requireNamespace("devtools", quietly=TRUE))
   install.packages("devtools")
@@ -47,7 +47,7 @@ library(CytoNorm)
 library(SingleCellExperiment)
 library(uwot)
 library(knitr)
-library(xlsx)
+library(openxlsx)
 ```
 
 
@@ -61,6 +61,7 @@ The exported FCS 3.1 files can be stored in a folder *FCS files* and subsequentl
 
 ```{r Importing FCS files A}
 fcs.dir<- file.path(getwd(), "FCS files")
+
 
 fcs_data <- read.flowSet(path=fcs.dir, pattern="*.fcs", transformation = FALSE, truncate_max_range = FALSE) #fcs_data will be a FlowSet object
 ```
@@ -107,15 +108,28 @@ Downsampling_FlowSet <- function(x, samplesize , replace=TRUE, prob=NULL){
     ff[i,]
   })
 }
+have_cofactor_data <- TRUE
+if (have_cofactor_data) {
+  cofactordata <- openxlsx::read.xlsx('cofactordata.xlsx')  
 
-fcs_data_small <- Downsampling_FlowSet(x=fcs_data, samplesize = 2000) #samplesize is the number of cells included, you can include more cells.
+  } else {
 
-cofactors <- estParamFlowVS(fcs_data_small, channels=markerstotransform)
-cofactordata <- data.frame(markerstotransform, cofactors)
-write.csv(x=cofactordata, file="cofactordata.csv") #csv file
-write.xlsx(x=cofactordata, file="cofactordata.xlsx", sheet="cofactordata_A")
+  fcs_data_small <- Downsampling_FlowSet(x=fcs_data, samplesize = 2000) #samplesize is the number of cells included, you can include more cells.
+  
+  cofactors <- estParamFlowVS(fcs_data_small, channels=markerstotransform)
+  cofactordata <- data.frame(markerstotransform, cofactors)
 
-fcs_transform <- transFlowVS(fcs_data, channels = markerstotransform, cofactors)
+  wb <- createWorkbook()
+  addWorksheet(wb, "cofactordata_A")
+  writeData(wb, 'cofactordata_A', cofactordata)
+  # write.xlsx(x=cofactordata, file="cofactordata.xlsx", sheet="cofactordata_A")
+  saveWorkbook(wb, file = 'cofactordata.xlsx')
+  write.csv(x=cofactordata, file="cofactordata.csv") #csv file
+  
+  }  
+
+
+fcs_transform <- transFlowVS(fcs_data, channels = markerstotransform, cofactordata$cofactors)
 filenames <- sampleNames(fcs_data)
 sampleNames(fcs_transform) <- filenames
 
@@ -123,7 +137,7 @@ sampleNames(fcs_transform) <- filenames
 
 ##### Transforming your data with a fixed cofactor
 
-```{r Transforming data with a fixed cofactor A, results='hide'}
+```{r Transforming data with a fixed cofactor A,eval=FALSE,  results='hide'}
 cofactor <- 3000
 l <- length(markerstotransform)
 cofactors<- rep(cofactor, l)
